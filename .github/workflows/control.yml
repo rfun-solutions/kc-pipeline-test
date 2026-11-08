@@ -1,0 +1,17 @@
+name: control-push
+permissions:
+  contents: write
+on:
+  workflow_dispatch:
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Try plain push with GITHUB_TOKEN
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          echo control > deploy/control.txt
+          git add deploy/control.txt && git commit -m "control: github-actions push"
+          git push origin HEAD:main && echo "PUSH_RESULT=accepted" || echo "PUSH_RESULT=rejected"
