@@ -1,0 +1,34 @@
+name: deploy-bot
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    # skip our own deploy commits so the push does not loop
+    if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'deploy:')
+    runs-on: ubuntu-latest
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          app-id: ${{ vars.DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_BOT_PRIVATE_KEY }}
+      - uses: actions/checkout@v7.0.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+      - name: Commit and push as the App
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          uid=$(gh api "/users/${SLUG}[bot]" --jq .id)
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${uid}+${SLUG}[bot]@users.noreply.github.com"
+          mkdir -p deploy
+          echo "${GITHUB_SHA}" > deploy/tag.txt
+          git add deploy/tag.txt
+          git commit -m "deploy: ${GITHUB_SHA}"
+          git push origin HEAD:main
