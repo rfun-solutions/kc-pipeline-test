@@ -1,0 +1,37 @@
+name: rules-from-prod
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+concurrency: rules-from-prod
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          app-id: ${{ vars.DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_BOT_PRIVATE_KEY }}
+      - uses: actions/checkout@v7.0.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+      - name: Generate hot-paths rule and push to main as the App
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          uid=$(gh api "/users/${SLUG}[bot]" --jq .id)
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${uid}+${SLUG}[bot]@users.noreply.github.com"
+          mkdir -p .gitar/review
+          cat > .gitar/review/hot-paths.md <<'EOF'
+          Generated from Dash0 at 2026-11-08T12:00Z (FAKE test numbers): /api/agenda p95 2.1 s (budget 500 ms).
+
+          Rule: any change to src/api/agenda.mjs must not call the database inside a loop and must keep the exported constant AGENDA_P95_BUDGET_MS at 500 or lower. Quote this rule's header in the review finding when it applies.
+          EOF
+          sed -i 's/^          //' .gitar/review/hot-paths.md
+          git add .gitar/review/hot-paths.md
+          git commit -m "rules: add .gitar/review/hot-paths.md"
+          git pull --rebase origin main
+          git push origin HEAD:main
